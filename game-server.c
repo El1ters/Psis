@@ -186,52 +186,58 @@ int ChoosePlayerArea(bool areas_occupied[])
     }
     return area;
 }
-
 //Funçao para escolher a posiçao do jogador - return x,y
 void ChoosePlayerPosition(int area, int *x, int *y)
 {
     switch (area)
     {
-    
-    //Area A
+
+    // Area A    1-Esquerda
     case 0:
-        *x = 3;
+        /**x = 3;*/
+        *x = (rand() % (18 - 3 + 1)) + 3;
         *y = 1;
         break;
-    //Area B
+    // Area B    1-Baixo
     case 1:
         *x = 19;
-        *y = 3;
+        //*x = (rand() % (18 - 3 + 1)) + 3;
+        *y = (rand() % (18 - 3 + 1)) + 3;
         break;
-    //Area C
+    // Area C    2-Baixo
     case 2:
         *x = 20;
-        *y = 3;
+        *y = (rand() % (18 - 3 + 1)) + 3;
         break;
-    //Area D
+    // Area D    1-Direita
     case 3:
-        *x = 18;
+        /**x = 18;*/
+        *x = (rand() % (18 - 3 + 1)) + 3;
         *y = 19;
         break;
-    //Area E
+    // Area E    1-Cima
     case 4:
         *x = 1;
-        *y = 3;
+        *y = (rand() % (18 - 3 + 1)) + 3;
+        /**y = 3;*/
         break;
-    //Area F
+    // Area F    2-Direita
     case 5:
-        *x = 18;
+        *x = (rand() % (18 - 3 + 1)) + 3;
         *y = 20;
         break;
-    //Area G
+    // Area G    2-Cima
     case 6:
         *x = 2;
-        *y = 3;
+        *y = (rand() % (18 - 3 + 1)) + 3;
+        /**y = 3;*/
         break;
-    //Area H
+        // Area H    2-Esquerda
+
     case 7:
-        *x = 3;
+        *x = (rand() % (18 - 3 + 1)) + 3;
         *y = 2;
+        /**y = 2;*/
         break;
     default:
         break;
@@ -272,10 +278,11 @@ int main()
     draw_score(score_win, NULL, 0);
     wrefresh(board_win);
 
-
+    srand(time(NULL));
     ch_info_t clients[MAX_CLIENTS];
     bool areas_occupied[8] = {false, false, false, false, false, false, false, false};
     int client_count = 0;
+    int area = -1;
 
     while(1){
         remote_char_t buffer;
@@ -287,18 +294,20 @@ int main()
 
         // Verifica o tipo de mensagem Tipo 0 - join, 1 - move, 2 - Firing, 3 - leave
         if (buffer.msg_type == 0)
-        {   
-            int area = ChoosePlayerArea(areas_occupied);
-            if (area == -1)
+        {
+            /* int area = ChoosePlaayerArea(areas_occupied);*/
+            area = (rand() % 8) + 1;
+
+            while (areas_occupied[area] == true && client_count < 8)
             {
-                printf("Max players reached\n");
-                continue;
+                area = (rand() % 8) + 1;
             }
 
             areas_occupied[area] = true;
-            ChoosePlayerPosition(area, &pos_x, &pos_y); 
 
-            if(client_count < 8)
+            ChoosePlayerPosition(area, &pos_x, &pos_y);
+
+            if (client_count < 8)
                 add_client(clients, &client_count, buffer.ch, pos_x, pos_y);
 
             wmove(board_win, pos_x, pos_y);
