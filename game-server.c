@@ -17,6 +17,8 @@
 #include <stdlib.h>
 #include <zmq.h>
 #include "zhelpers.h"
+#include <unistd.h> // For usleep
+
 
 #define WINDOW_SIZE 22 // o tabuleiro é de 20x20, mas o tamanho da janela é 22x22 para desenhar a borda
 
@@ -113,9 +115,10 @@ void add_client(ch_info_t clients[], int *client_count, int ch, int pos_x, int p
     clients[*client_count].pos_x = pos_x;
     clients[*client_count].pos_y = pos_y;
     clients[*client_count].score = 0;
+    clients[*client_count].fire = true;
+    clients[*client_count].move = true;
     (*client_count)++;
 }
-
 //remover clientes
 void remove_client(ch_info_t clients[], int *client_count, int ch)
 {
@@ -130,14 +133,6 @@ void remove_client(ch_info_t clients[], int *client_count, int ch)
             (*client_count)--;
             break;
         }
-    }
-}
-
-void print_clients(ch_info_t clients[], int client_count)
-{
-    for (int i = 0; i < client_count; i++)
-    {
-        mvprintw(0, 0, "Client %d: %c", i, clients[i].ch);
     }
 }
 
@@ -175,15 +170,13 @@ bool are_coords_in_same_area(int line1, int column1, int line2, int column2)
 
 int ChoosePlayerArea(bool areas_occupied[])
 {
-    int area = -1;
-    for (int i = 0; i < 8; i++)
+    int area = (rand() % 8) + 1;
+
+    while (areas_occupied[area] == true)
     {
-        if (areas_occupied[i] == false)
-        {
-            area = i;
-            break;
-        }
+        area = (rand() % 8) + 1;
     }
+
     return area;
 }
 //Funçao para escolher a posiçao do jogador - return x,y
@@ -244,11 +237,84 @@ void ChoosePlayerPosition(int area, int *x, int *y)
     }
 }
 
+void Shoot(WINDOW *board_win, int x, int y, char ch,int client_count, ch_info_t clients[])
+{
+    int player = find_ch_info(clients, client_count, ch);
+    if (IS_AREA_A(x, y) || IS_AREA_D(x, y) || IS_AREA_F(x, y) || IS_AREA_H(x, y))
+    {
+        for (int i = 0; i <= 20; i++)
+        {
+            if (mvwinch(board_win, x, i) == ' ')
+            {
+                mvwaddch(board_win, x, i, '-');
+            }
+        }
+        wrefresh(board_win);
+        //remove every '-' after 0.5 seconds
+
+        for (int i = 0; i < client_count; i++){
+            if (clients[i].pos_x == x && i != player) // Verifica o outro cliente está na mesma coluna.
+            {
+                //adicionar pontos ao que disparou
+                clients[player].score += 10;
+
+                //stun the other player
+                clients[i].move = false;
+                clients[i].fire = false;
+            }
+        }
+
+        usleep(500000);
+        for (int i = 0; i <= 20; i++)
+        {
+            if (mvwinch(board_win, x, i) == '-')
+            {
+                mvwaddch(board_win, x, i, ' ');
+            }
+        }
+        wrefresh(board_win);
+
+    }
+    else if (IS_AREA_B(x, y) || IS_AREA_C(x, y) || IS_AREA_E(x, y) || IS_AREA_G(x, y))
+    {
+        for (int i = 0; i <= 20; i++)
+        {
+            if (mvwinch(board_win, i, y) == ' ')
+            {
+                mvwaddch(board_win, i, y, '|');
+            }
+        }
+        wrefresh(board_win);
+        //remove every '-' after 0.5 seconds
+
+        for (int i = 0; i < client_count; i++){
+            if (clients[i].pos_y == y && i != player) // Verifica o outro cliente está na mesma coluna.
+            {
+                //adicionar pontos ao que disparou
+                clients[player].score += 10;
+
+                //stun the other player
+                clients[i].move = false;
+                clients[i].fire = false;
+            }
+        }
+
+        usleep(500000);
+        for (int i = 0; i <= 20; i++)
+        {
+            if (mvwinch(board_win, i, y) == '|')
+            {
+                mvwaddch(board_win, i, y, ' ');
+            }
+        }
+        wrefresh(board_win);
+    }
+}
+
 int main()
 {
     // usar ZeroMQ TCP sockets
     void *context = zmq_ctx_new();
-    
     void *requester = zmq_socket(context, ZMQ_REP);
     int rc = zmq_bind(requester, "ipc:///tmp/s1");
     assert(rc == 0);
@@ -287,6 +353,7 @@ int main()
     while(1){
         remote_char_t buffer;
         int pos_x, pos_y;
+
         if(zmq_recv(requester, &buffer, sizeof(remote_char_t), 0) == -1){
             printf("Error receiving the message: %d\n", rc);
             exit(1);
@@ -296,15 +363,8 @@ int main()
         if (buffer.msg_type == 0)
         {
             /* int area = ChoosePlaayerArea(areas_occupied);*/
-            area = (rand() % 8) + 1;
-
-            while (areas_occupied[area] == true && client_count < 8)
-            {
-                area = (rand() % 8) + 1;
-            }
-
+            area = ChoosePlayerArea(areas_occupied);
             areas_occupied[area] = true;
-
             ChoosePlayerPosition(area, &pos_x, &pos_y);
 
             if (client_count < 8)
@@ -317,7 +377,7 @@ int main()
         if (buffer.msg_type == 1)
         {
             int index = find_ch_info(clients, client_count, buffer.ch);
-            if (index != -1)
+            if (index != -1 && clients[index].move)
             {
                 pos_x = clients[index].pos_x;
                 pos_y = clients[index].pos_y;
@@ -338,7 +398,22 @@ int main()
                 waddch(board_win, buffer.ch | A_BOLD);
             }
         }
- 
+        else if (buffer.msg_type == 2)
+        {
+            int index = find_ch_info(clients, client_count, buffer.ch);
+            int x = clients[index].pos_x;
+            int y = clients[index].pos_y;
+
+            Shoot(board_win, x, y, buffer.ch, client_count, clients);
+            //verify if a player was stunned
+            for (int i = 0; i < client_count; i++)
+            {
+                if (clients[i].move == false){
+                    //start the player after 10 seconds
+
+                }
+            }
+        }
         else if (buffer.msg_type == 3)
         {
             int index = find_ch_info(clients, client_count, buffer.ch);

@@ -50,24 +50,28 @@ int main()
         {
             case KEY_LEFT:
                 mvprintw(0, 0, "%d Left arrow is pressed", n);
+                m.msg_type = 1;
                 // TODO_9
                 //  prepare the movement message
                 m.direction = LEFT;
                 break;
             case KEY_RIGHT:
                 mvprintw(0, 0, "%d Right arrow is pressed", n);
+                m.msg_type = 1;
                 // TODO_9
                 //  prepare the movement message
                 m.direction = RIGHT;
                 break;
             case KEY_DOWN:
                 mvprintw(0, 0, "%d Down arrow is pressed", n);
+                m.msg_type = 1;
                 // TODO_9
                 //  prepare the movement message
                 m.direction = DOWN;
                 break;
             case KEY_UP:
                 mvprintw(0, 0, "%d :Up arrow is pressed", n);
+                m.msg_type = 1;
                 // TODO_9
                 //  prepare the movement message
                 m.direction = UP;
@@ -76,7 +80,10 @@ int main()
                 mvprintw(0, 0, "Disconnecting...");
                 m.msg_type = 3;
                 break;
-
+            case ' ':
+                mvprintw(0, 0, "Firing...");
+                m.msg_type = 2;
+                break;
             default:
                 key = '?';
                 break;
