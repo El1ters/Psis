@@ -3,35 +3,68 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <ctype.h> 
+#include <ctype.h>
 #include "zhelpers.h"
 #include "remote-char.h"
+#include "common.h"
+
+
+void processKeyBoard(int key, remote_char_t *m)
+{
+    switch (key)
+    {
+    case KEY_LEFT:
+        m->msg_type = 1;
+        m->direction = LEFT;
+        break;
+    case KEY_RIGHT:
+        m->msg_type = 1;
+        m->direction = RIGHT;
+        break;
+    case KEY_DOWN:
+        m->msg_type = 1;
+        m->direction = DOWN;
+        break;
+    case KEY_UP:
+        m->msg_type = 1;
+        m->direction = UP;
+        break;
+    case 'q':
+        m->msg_type = 3;
+        break;
+    case ' ':
+        m->msg_type = 2;
+        break;
+    default:
+        key = '?';
+        m->msg_type = -1;
+        break;
+    }
+}
+
 
 int main()
 {
     // Initialize ZeroMQ context and socket
-    void *context = zmq_ctx_new();
-    // Connect to the server using ZMQ_REQ
-    void *requester = zmq_socket(context, ZMQ_REQ);
-    int rc = zmq_connect(requester, "ipc:///tmp/s1");
-    assert(rc == 0);
+    void *context = NULL;
+    void *requester = initialize_zmq_socket(&context, ZMQ_REQ, "ipc:///tmp/s1", false);
 
-    char ch;
-    do
-    {
-        printf("what is your character?: "); // ask the user for a character
-        ch = getchar();
-        ch = tolower(ch);
-    } while (!isalpha(ch));
-
-    remote_char_t m;
+    remote_char_t m, response;
     m.msg_type = 0;
-    m.ch = ch;
-    zmq_send(requester, &m, sizeof(m), 0);
 
-    char response[10];
-    zmq_recv(requester, response, sizeof(response), 0);
+    send_message(requester, &m, sizeof(m));
+    receive_message(requester, &response, sizeof(response));
 
+    if (strcmp(response.ticket, "FULL") == 0)
+    {
+        printf("Server is full\n");
+        zmq_close(requester);
+        zmq_ctx_destroy(context);
+        exit(1);
+    }
+
+    m.ch = response.ch;
+    strcpy(m.ticket, response.ticket);
     // Initialize ncurses
     initscr();            /* Start curses mode 		*/
     cbreak();             /* Line buffering disabled	*/
@@ -40,64 +73,18 @@ int main()
     curs_set(0);          // Hide the cursor
 
     int key;
-    int n = 0;
-    m.msg_type = 1; // Move message
     do
     {
         key = getch();
-        n++;
-        switch (key)
-        {
-            case KEY_LEFT:
-                mvprintw(0, 0, "%d Left arrow is pressed", n);
-                m.msg_type = 1;
-                // TODO_9
-                //  prepare the movement message
-                m.direction = LEFT;
-                break;
-            case KEY_RIGHT:
-                mvprintw(0, 0, "%d Right arrow is pressed", n);
-                m.msg_type = 1;
-                // TODO_9
-                //  prepare the movement message
-                m.direction = RIGHT;
-                break;
-            case KEY_DOWN:
-                mvprintw(0, 0, "%d Down arrow is pressed", n);
-                m.msg_type = 1;
-                // TODO_9
-                //  prepare the movement message
-                m.direction = DOWN;
-                break;
-            case KEY_UP:
-                mvprintw(0, 0, "%d :Up arrow is pressed", n);
-                m.msg_type = 1;
-                // TODO_9
-                //  prepare the movement message
-                m.direction = UP;
-                break;
-            case 'q' :
-                mvprintw(0, 0, "Disconnecting...");
-                m.msg_type = 3;
-                break;
-            case ' ':
-                mvprintw(0, 0, "Firing...");
-                m.msg_type = 2;
-                break;
-            default:
-                key = '?';
-                break;
-        }
+        processKeyBoard(key, &m);
 
-        // TODO_10
-        // send the movement message
-        if (key != '?')
-        {   
-            zmq_send(requester, &m, sizeof(m), 0);
-            zmq_recv(requester, response, sizeof(response), 0);
-            //Processar esta mensagem
+        //Nao mandar mensagens inuteis para o servidor
+        if (m.msg_type != -1){
+            send_message(requester, &m, sizeof(m));
         }
-        if (key == 'q' || key == 'Q')
+        receive_message(requester, &m, sizeof(m));
+
+        if (key == 'q')
         {
             // Disconnect from the server
             zmq_close(requester);

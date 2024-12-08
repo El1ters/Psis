@@ -1,3 +1,5 @@
+#include <time.h>
+
 typedef enum direction_t
 {
     UP,
@@ -8,8 +10,9 @@ typedef enum direction_t
 
 typedef struct remote_char_t
 {
-    int msg_type; /* 0 - join   1 - move   2 - Firing   3 - leave  */
+    int msg_type; // 0 - join, 1 - move, 2 - Firing, 3 - leave
     char ch;
+    char ticket[7];
     direction_t direction;
     /* data */
 } remote_char_t;
@@ -19,8 +22,11 @@ typedef struct ch_info_t
     int ch;
     int pos_x, pos_y;
     int score;
-    
-    /*Variables used to know if a client can shoot or move*/
-    bool fire;
     bool move;
+    bool shoot;
+    char ticket[7];
+    time_t hit_time;
+    time_t shoot_time;
 } ch_info_t;
+
+
